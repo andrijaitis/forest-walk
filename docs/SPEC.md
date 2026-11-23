@@ -73,4 +73,4 @@ Opened with a long press on the title or a similar hidden gesture:
 
 - How large an area does she walk in (a radius in km)? This sets the bounding box and size of the bundled map file.
 - Does she want the screen to stay on while the app is open? (This costs battery.)
-- Should the language be English or her native language?
+- ~~Should the language be English or her native language?~~ Decided: **Lithuanian**. All text is in `app/src/strings.ts`, and the app is named "Miško takas".

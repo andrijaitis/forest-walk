@@ -1,15 +1,17 @@
-// All user-visible text in one place, so it is easy to translate (e.g. to Lithuanian).
+// All user-visible text in one place (Lithuanian).
 export const t = {
-  start: 'START',
-  stop: 'STOP',
-  holdToStop: 'Hold for 2 seconds to stop',
-  recording: 'Recording',
-  notRecording: 'Not recording',
-  loadingMap: 'Loading map…',
-  notificationTitle: 'Forest Path is recording',
-  notificationBody: 'Your route is being saved.',
-  needLocation: 'Location permission is needed. Please allow it.',
+  start: 'PRADĖTI',
+  stop: 'BAIGTI',
+  holdToStop: 'Laikykite nuspaudę 2 sekundes',
+  recording: 'Įrašoma',
+  notRecording: 'Neįrašoma',
+  loadingMap: 'Kraunamas žemėlapis…',
+  centerOnMe: 'Rodyti mano vietą',
+  notificationTitle: 'Miško takas įrašo kelią',
+  notificationBody: 'Jūsų kelias išsaugomas.',
+  needLocation: 'Reikia leidimo naudoti vietą. Prašome leisti.',
   needBackground:
-    'Please choose "Allow all the time" for location, otherwise recording stops when the screen is off.',
-  gpsOff: 'Please turn on location (GPS).',
+    'Vietos nustatymui pasirinkite „Leisti visą laiką“, kitaip įrašymas sustos išjungus ekraną.',
+  gpsOff: 'Prašome įjungti vietos nustatymą (GPS).',
+  duration: (h: number, m: number) => `${h} val. ${String(m).padStart(2, '0')} min.`,
 };

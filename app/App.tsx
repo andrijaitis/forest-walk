@@ -14,7 +14,7 @@ import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 import { getLatestRoute, getPoints, type Point } from './src/db';
 import { pathLengthM } from './src/geo';
-import { buildStyle, ensureMapFile, MAP_CENTER } from './src/map';
+import { buildStyle, ensureMapFiles, MAP_CENTER, type MapFiles } from './src/map';
 import { t } from './src/strings';
 import { isRecording, resumeIfNeeded, startRecording, stopRecording } from './src/tracking';
 
@@ -30,7 +30,7 @@ export default function App() {
 }
 
 function MainScreen() {
-  const [mapUri, setMapUri] = useState<string | null>(null);
+  const [mapFiles, setMapFiles] = useState<MapFiles | null>(null);
   const [mapError, setMapError] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -45,7 +45,7 @@ function MainScreen() {
 
   // One-time setup: extract the map, ask for location, resume an interrupted walk.
   useEffect(() => {
-    ensureMapFile().then(setMapUri, (e) => setMapError(String(e)));
+    ensureMapFiles().then(setMapFiles, (e) => setMapError(String(e)));
     Location.requestForegroundPermissionsAsync().catch(() => {});
     resumeIfNeeded()
       .catch(() => {})
@@ -127,7 +127,7 @@ function MainScreen() {
     setFollow(true);
   };
 
-  const style = useMemo(() => (mapUri ? buildStyle(mapUri) : null), [mapUri]);
+  const style = useMemo(() => (mapFiles ? buildStyle(mapFiles) : null), [mapFiles]);
 
   const line = useMemo<GeoJSON.Feature>(
     () => ({
@@ -140,7 +140,7 @@ function MainScreen() {
   const home = points[0];
   const km = (pathLengthM(points) / 1000).toFixed(1);
   const mins = startedAt ? Math.floor(((recording ? now : points.at(-1)?.ts ?? now) - startedAt) / 60000) : 0;
-  const duration = `${Math.floor(mins / 60)}h ${String(mins % 60).padStart(2, '0')}m`;
+  const duration = t.duration(Math.floor(mins / 60), mins % 60);
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -197,7 +197,7 @@ function MainScreen() {
           </View>
         )}
         {!follow && (
-          <Pressable style={styles.recenter} onPress={recenter} accessibilityLabel="Center on me">
+          <Pressable style={styles.recenter} onPress={recenter} accessibilityLabel={t.centerOnMe}>
             <Text style={styles.recenterText}>◎</Text>
           </Pressable>
         )}

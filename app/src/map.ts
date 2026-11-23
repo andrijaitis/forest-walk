@@ -4,133 +4,146 @@ import { File, Paths } from 'expo-file-system';
 
 type Style = Exclude<MapProps['mapStyle'], string>;
 
-// Bump this when the bundled map file changes, so the new one is copied over the old.
-const MAP_VERSION = 'nemencine-20261122';
+// Prefix for the extracted map files. The asset's content hash is added to each
+// file name, so a changed map (e.g. the full aerial photo replacing the blank
+// fallback) is picked up automatically.
+const MAP_VERSION = 'sakaline';
 
-/** Centre of the bundled map (Nemenčinė), used before the first GPS fix. */
-export const MAP_CENTER: [number, number] = [25.48, 54.85];
-export const MAP_BOUNDS: [number, number, number, number] = [25.17, 54.67, 25.79, 55.03];
+/** Centre of the bundled map (Sakalinė, Tauragės r.), used before the first GPS fix. */
+export const MAP_CENTER: [number, number] = [22.3823, 55.1894];
+
+export type MapFiles = { ortho: string; vector: string };
 
 /**
- * MapLibre cannot read files packed inside the APK, so the bundled map is
+ * MapLibre cannot read files packed inside the APK, so the bundled maps are
  * extracted once into the app's documents folder (persistent, never cleared by
- * the OS) and loaded from there. Returns a file:// URI.
+ * the OS) and loaded from there. Returns file:// URIs.
  */
-export async function ensureMapFile(): Promise<string> {
-  const target = new File(Paths.document, `${MAP_VERSION}.pmtiles`);
+export async function ensureMapFiles(): Promise<MapFiles> {
+  const [ortho, vector] = await Promise.all([
+    // Resolves to a tiny blank fallback if the photo file is missing (see metro.config.js).
+    ensureFile('ortho', require('../assets/map/sakaline-ortho.pmtiles')),
+    ensureFile('vector', require('../assets/map/sakaline.pmtiles')),
+  ]);
+  removeOldMaps([ortho, vector]);
+  return { ortho, vector };
+}
+
+/** Delete any other extracted map files, so old maps don't fill up the phone. */
+function removeOldMaps(keep: string[]) {
+  try {
+    for (const item of Paths.document.list()) {
+      if (item instanceof File && item.name.endsWith('.pmtiles') && !keep.includes(item.uri)) {
+        item.delete();
+      }
+    }
+  } catch {
+    // Not critical: worst case an old map file stays on the phone.
+  }
+}
+
+async function ensureFile(name: string, moduleId: number): Promise<string> {
+  const asset = Asset.fromModule(moduleId);
+  const target = new File(Paths.document, `${MAP_VERSION}-${name}-${asset.hash ?? 'nohash'}.pmtiles`);
   if (target.exists && (target.size ?? 0) > 0) return target.uri;
 
-  const asset = Asset.fromModule(require('../assets/map/nemencine.pmtiles'));
   await asset.downloadAsync();
-  if (!asset.localUri) throw new Error('Map asset could not be loaded');
+  if (!asset.localUri) throw new Error(`Map asset "${name}" could not be loaded`);
 
-  const src = new File(asset.localUri);
   if (target.exists) target.delete();
-  await src.copy(target);
+  await new File(asset.localUri).copy(target);
   return target.uri;
 }
 
 /**
- * A deliberately simple, high-contrast style with no text labels, so no fonts
- * or sprites need to be bundled. Forest paths/tracks are drawn prominently.
+ * Drawn map, then the aerial photo over it, then forest paths and roads on top in
+ * high-contrast colours. No text labels, so no fonts/sprites need bundling.
  */
-export function buildStyle(mapFileUri: string): Style {
-  const src = 'base';
+export function buildStyle(files: MapFiles): Style {
+  const v = 'vector';
   return {
     version: 8,
     sources: {
-      [src]: {
+      ortho: {
+        type: 'raster',
+        url: `pmtiles://${files.ortho}`,
+        tileSize: 256,
+        attribution: 'ORT10LT © Nacionalinė žemės tarnyba prie AM',
+      },
+      [v]: {
         type: 'vector',
-        url: `pmtiles://${mapFileUri}`,
+        url: `pmtiles://${files.vector}`,
         attribution: '© OpenStreetMap',
       },
     },
     layers: [
+      // Drawn map underneath: hidden by the aerial photo where it exists, and
+      // visible when the photo file is missing (blank fallback) or outside its area.
       { id: 'bg', type: 'background', paint: { 'background-color': '#f2efe6' } },
-      {
-        id: 'earth',
-        type: 'fill',
-        source: src,
-        'source-layer': 'earth',
-        paint: { 'fill-color': '#f2efe6' },
-      },
       {
         id: 'forest',
         type: 'fill',
-        source: src,
+        source: v,
         'source-layer': 'landuse',
         filter: ['in', ['get', 'kind'], ['literal', ['forest', 'wood', 'nature_reserve', 'national_park']]],
-        paint: { 'fill-color': '#b5d9a3' },
+        paint: { 'fill-color': '#8fc47a' },
       },
       {
         id: 'fields',
         type: 'fill',
-        source: src,
+        source: v,
         'source-layer': 'landuse',
         filter: ['in', ['get', 'kind'], ['literal', ['farmland', 'grassland', 'meadow', 'grass', 'park']]],
         paint: { 'fill-color': '#e8edc9' },
       },
       {
-        id: 'residential',
-        type: 'fill',
-        source: src,
-        'source-layer': 'landuse',
-        filter: ['in', ['get', 'kind'], ['literal', ['residential', 'industrial', 'commercial']]],
-        paint: { 'fill-color': '#e3dcd2' },
-      },
-      {
         id: 'water',
         type: 'fill',
-        source: src,
+        source: v,
         'source-layer': 'water',
         filter: ['==', ['geometry-type'], 'Polygon'],
         paint: { 'fill-color': '#8cc4ea' },
       },
       {
-        id: 'waterway',
-        type: 'line',
-        source: src,
-        'source-layer': 'water',
-        filter: ['==', ['geometry-type'], 'LineString'],
-        paint: { 'line-color': '#5aa5d6', 'line-width': 2 },
-      },
-      {
         id: 'buildings',
         type: 'fill',
-        source: src,
+        source: v,
         'source-layer': 'buildings',
         paint: { 'fill-color': '#c9bfb2' },
       },
+      { id: 'ortho', type: 'raster', source: 'ortho' },
       {
-        // Forest paths and tracks: the important ones for her.
-        id: 'paths',
+        // Forest paths/tracks: dark outline + bright yellow dashes, visible on green forest.
+        id: 'paths-casing',
         type: 'line',
-        source: src,
+        source: v,
         'source-layer': 'roads',
+        minzoom: 13,
         filter: ['==', ['get', 'kind'], 'path'],
-        layout: { 'line-cap': 'round' },
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: {
-          'line-color': '#7a4b1e',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 12, 1, 16, 3, 18, 5],
-          'line-dasharray': [2, 1],
+          'line-color': 'rgba(0,0,0,0.55)',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 13, 2.5, 16, 5, 18, 8],
         },
       },
       {
-        id: 'roads-casing',
+        id: 'paths',
         type: 'line',
-        source: src,
+        source: v,
         'source-layer': 'roads',
-        filter: ['!=', ['get', 'kind'], 'path'],
-        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        minzoom: 13,
+        filter: ['==', ['get', 'kind'], 'path'],
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
         paint: {
-          'line-color': '#8a8a8a',
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 16, 8, 18, 14],
+          'line-color': '#ffe14d',
+          'line-width': ['interpolate', ['linear'], ['zoom'], 13, 1.2, 16, 2.5, 18, 4],
+          'line-dasharray': [2, 1.2],
         },
       },
       {
         id: 'roads',
         type: 'line',
-        source: src,
+        source: v,
         'source-layer': 'roads',
         filter: ['!=', ['get', 'kind'], 'path'],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
@@ -139,10 +152,10 @@ export function buildStyle(mapFileUri: string): Style {
             'match',
             ['get', 'kind'],
             ['highway', 'major_road'],
-            '#f7d774',
-            '#ffffff',
+            'rgba(255,200,80,0.85)',
+            'rgba(255,255,255,0.75)',
           ],
-          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 16, 6, 18, 11],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 0.8, 16, 4, 18, 8],
         },
       },
     ],

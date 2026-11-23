@@ -36,12 +36,32 @@ Format: one entry per decision, newest at the bottom.
 - Files inside an APK can't be read by MapLibre as normal files. So on first launch the app **copies the assets to the app's documents folder** (`expo-asset` + `expo-file-system`), and the style points to `pmtiles://file://…`.
 - Labels need glyphs. Bundle only the one or two font ranges the style uses, or use a style without labels to keep things small.
 
-**Done (2026-11-23):** `app/assets/map/nemencine.pmtiles`. It covers Nemenčinė and about 20 km around it, bbox `25.17,54.67,25.79,55.03`, zoom 0–15, 24.5 MB, from Protomaps build `20261122`. A sample forest tile contains `path` and `track` roads and `forest` land cover.
-To regenerate: `pmtiles extract https://build.protomaps.com/20261122.pmtiles app/assets/map/nemencine.pmtiles --bbox=25.17,54.67,25.79,55.03 --maxzoom=15` (pmtiles CLI v1.31.2)
+**Done (2026-11-23):** a first map of Nemenčinė worked on the emulator. It was replaced by Sakalinė the same day (see D10).
 
 **Fallback:** If PMTiles doesn't work in the RN wrapper version we choose, convert the extract to **MBTiles** and serve it with `mbtiles://`, or use a MapTiler offline pack downloaded once by the family member.
 **To verify during the spike:** PMTiles or MBTiles loading from a local file, and that the map renders with flight mode on.
 **Note:** Don't bulk-download from openstreetmap.org tile servers, because their usage policy forbids it.
+
+## D10 — Sakalinė, with aerial imagery under the drawn paths
+
+**Decision:** The map covers **Sakalinė (Gaurės sen., Tauragės r.), 55.1894°N 22.3823°E**, about 10 km in each direction. It shows an **aerial photo** as the background, with OSM forest paths (yellow dashes) and roads drawn on top.
+**Why:** On the drawn map it was hard to see where the forest actually is. The photo shows forest, clearings and fields as they really look, and the paths drawn on top are still easy to follow.
+
+Two files are bundled in `app/assets/map/`:
+- **`sakaline-ortho.pmtiles`:** the aerial photo. It is Lithuania's **ORT10LT 2021–2023** orthophoto, requested from the geoportal.lt ArcGIS `export` endpoint already converted to EPSG:3857 (the service itself uses LKS94). Zoom 10–16, 256 px JPEG tiles, about 1.4 m per pixel at z16, about 70 MB.
+  To regenerate:
+  ```
+  node tools/fetch-ortho.mjs 22.224 55.099 22.540 55.279 10 16 ortho.mbtiles
+  pmtiles convert ortho.mbtiles app/assets/map/sakaline-ortho.pmtiles
+  ```
+- **`sakaline.pmtiles`:** the vector paths and roads. It is a Protomaps extract with bbox `22.224,55.099,22.540,55.279`, zoom 0–15, 4.9 MB.
+  To regenerate: `pmtiles extract https://build.protomaps.com/20261122.pmtiles app/assets/map/sakaline.pmtiles --bbox=22.224,55.099,22.540,55.279 --maxzoom=15`
+
+**Not in git:** `sakaline-ortho.pmtiles` is git-ignored, because the repo is public and the imagery is for personal use only. It is also large. [BUILD.md](BUILD.md) ("Aerial photo map") explains how to get it or regenerate it. If it is missing, the build automatically uses a 593-byte transparent fallback, which is in git. The drawn forest, field and water colours under the photo layer then show through, so the app still works without the photo.
+
+**Licence:** ORT10LT © Nacionalinė žemės tarnyba prie AM. The geoportal.lt terms give a free, personal licence to use the service, but say nothing explicit about saving tiles offline. The family decided to use it for **personal, family-only use**: the APK is not published, the attribution is kept in the map style, and the download is done once, gently (one request at a time, with pauses). Ask the land agency (NŽT) before any wider distribution.
+**Options considered:** Sentinel-2 cloudless (only 10 m per pixel, too blurry for paths; the licence is NC). Esri and Mapbox imagery (their terms forbid offline bulk use).
+**Next time:** A newer ORT10LT edition (`ORT10LT_2024_2026`) exists but didn't cover Sakalinė yet (it returned HTTP 500 in Nov 2026). Switch to it once it does.
 
 ## D5 — Store points in SQLite, write each point as it arrives
 

@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Aerial photo map: too large for git, and the imagery licence is personal-use only.
+# Regenerate it with tools/fetch-ortho.mjs (see docs/BUILD.md, "Aerial photo map").
+assets/map/*-ortho.pmtiles
